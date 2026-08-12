@@ -46,6 +46,8 @@ const client = new Client({
 const API = `http://localhost:${config.port}`;
 const EMOJI = { allow: "🟢", flag: "🟡", remove: "🔴" };
 const MAX_LEN = 1900; // Discord message limit (2000) minus headroom
+const MUTE_MS = 10 * 60 * 1000; // 2nd violation → 10-minute timeout
+const BAN_THRESHOLD = 3; // 3rd violation → ban warning (enforcement stays manual via !enforce)
 
 // When DISCORD_OUTPUT_CHANNEL_ID is set, ALL bot/Mind output is sent
 // there instead of the channel the message came from.
@@ -283,6 +285,116 @@ async function stats(channel) {
   return channel.send(lines.join("\n"));
 }
 
+/**
+ * Private warning ladder — DM only the offending user can see:
+ *   1st violation → gentle reminder (what happens if they continue)
+ *   2nd violation → "muted 10 min" notice + actual 10-min timeout
+ *   3rd+ violation → final ban warning (ban itself stays manual)
+ * Uses the engine's violation count for the current user.
+ */
+async function sendViolationNotice(author, member, { category = "unknown", reason = "" }) {
+  const userId = `u_${author.id}`;
+  let violations = 1;
+  try {
+    const s = await api("/api/state");
+    const user = (s.body.users ?? []).find((u) => u.id === userId);
+    if (user) violations = user.violations;
+  } catch { /* best-effort; default to 1 */ }
+
+  const server = member?.guild?.name ?? "the community";
+  const head = `Hi ${author.username}! This is an automated notice from **Hearthkeeper**, the AI community steward of *${server}*.`;
+  const foot = "You're receiving this in private so no one else sees it. 💛";
+
+  try {
+    if (violations === 1) {
+      await author.send(
+        `${head}\n\nYour recent message was removed for violating our community rules (${category}: ${reason}).\n\n` +
+        `This is your **first warning** — no action has been taken against your account. Please keep future messages kind and on-topic.\n\n` +
+        `Please note: violations escalate automatically — a **2nd violation results in a 10-minute mute**, and a **3rd results in a ban** from the server.\n\n${foot}`
+      );
+      log(`[warn] 1st DM sent to ${author.username}`);
+    } else if (violations === 2) {
+      await author.send(
+        `${head}\n\nYour recent message was removed (${category}: ${reason}). This is your **2nd violation**.\n\n` +
+        `Per our escalation policy you have been **muted for 10 minutes** — you'll be able to chat again after that.\n\n` +
+        `⚠️ One more violation will result in a **ban**. Please take a moment to re-read the community rules.\n\n${foot}`
+      );
+      log(`[warn] 2nd DM sent to ${author.username}`);
+      // Actually mute for 10 minutes (needs "Timeout Members" permission).
+      if (member?.timeout) {
+        await member.timeout(MUTE_MS, `Hearthkeeper: 2nd violation (${category})`).catch((err) => {
+          log(`[warn] timeout failed for ${author.username}: ${err.message} (missing Timeout Members?)`);
+        });
+      }
+    } else {
+      await author.send(
+        `${head}\n\nYour recent message was removed (${category}: ${reason}). You now have **${violations} violations**.\n\n` +
+        `🚫 This is your **final warning**: our policy is a **ban at ${BAN_THRESHOLD} violations**. If you break the rules again, you will be banned from the server.\n\n` +
+        `The community is better with you in it — please stop and reset. 🙏\n\n${foot}`
+      );
+      log(`[warn] final DM sent to ${author.username}`);
+    }
+  } catch (err) {
+    // User may have DMs disabled server-side — never crash the flow.
+    log(`[warn] DM to ${author.username} failed: ${err.message}`);
+  }
+}
+
+/**
+ * `!enforce` — apply the latest escalation rulings to Discord itself.
+ * Human-confirmed and destructive, so it never runs automatically:
+ *   restrict → 24h timeout (needs "Moderate Members")
+ *   ban      → server ban (needs "Ban Members")
+ * Usage: `!enforce` | `!enforce restrict` | `!enforce ban`
+ */
+async function enforce(message, cmd, dest) {
+  const parts = cmd.split(/\s+/);
+  const only = parts[1];
+  if (only && !["restrict", "ban"].includes(only)) {
+    return dest.send("Usage: `!enforce` | `!enforce restrict` | `!enforce ban`");
+  }
+  let s;
+  try {
+    s = await api("/api/state");
+  } catch {
+    return dest.send("⚠️ Cannot reach the Hearthkeeper engine — is `npm start` running?");
+  }
+  const escalations = (s.body.reports ?? []).filter((r) => r.kind === "escalation");
+  const latest = escalations[0];
+  if (!latest) return dest.send("No escalation report yet — run `!audit` first.");
+  let rulings;
+  try {
+    rulings = JSON.parse(latest.body);
+  } catch {
+    return dest.send("⚠️ Could not read the escalation report.");
+  }
+  const targets = rulings.filter(
+    (m) => m.action !== "warn" && (!only || m.action === only) && /^u_\d+$/.test(m.userId)
+  );
+  if (!targets.length) return dest.send("Nothing to enforce (no Discord restrict/ban rulings in the latest report).");
+
+  const results = [];
+  for (const m of targets) {
+    const discordId = m.userId.slice(2);
+    try {
+      const member = await message.guild.members.fetch(discordId);
+      if (m.action === "ban") {
+        await member.ban({ reason: `Hearthkeeper: ${m.reason}` });
+        results.push(`🔨 Banned **${member.user.tag}** — ${m.reason}`);
+        log(`[enforce] banned ${member.user.tag} (${discordId})`);
+      } else {
+        await member.timeout(24 * 3600 * 1000, `Hearthkeeper: ${m.reason}`);
+        results.push(`⏱️ Timed out 24h **${member.user.tag}** — ${m.reason}`);
+        log(`[enforce] timeout ${member.user.tag} (${discordId})`);
+      }
+    } catch (err) {
+      results.push(`⚠️ ${m.userId}: ${err.message}`);
+      log(`[enforce] FAILED ${m.userId}: ${err.message}`);
+    }
+  }
+  return dest.send(`**Enforcement complete**\n${results.join("\n")}`);
+}
+
 // ── event handling ──────────────────────────────────────────────────
 
 client.once(Events.ClientReady, async (c) => {
@@ -318,7 +430,8 @@ client.on(Events.MessageCreate, async (message) => {
       "`!blacklist add|remove|list <term>` — manage the auto-delete dictionary\n" +
       "`!whitelist add|remove|list <term>` — manage the safe-word dictionary\n" +
       "`!stats` — violation stats\n" +
-      "`!digest` — today's health report"
+      "`!digest` — today's health report\n" +
+      "`!enforce` — apply restrict/ban rulings to Discord (timeout/ban)"
     );
   }
   if (isCmd(cmd, "review")) return runFullReview(dest);
@@ -329,6 +442,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (isCmd(cmd, "whitelist")) return whitelist(message, cmd, dest);
   if (isCmd(cmd, "stats")) return stats(dest);
   if (isCmd(cmd, "digest")) return runDigest(dest);
+  if (isCmd(cmd, "enforce")) return enforce(message, cmd, dest);
 
   // ── regular message → moderation pipeline ─────────────────────────
   try {
@@ -354,6 +468,8 @@ client.on(Events.MessageCreate, async (message) => {
         `🔴 Removed **${message.author.username}**'s message — **blacklisted term** (${hit.category}).\nReason: ${hit.reason}`
       ).catch(() => {});
       log(`[discord] ${message.author.username}: BLACKLIST auto-remove (${hit.matchedTerm})`);
+      // Private warning ladder (1st → reminder, 2nd → 10-min mute, 3rd → ban warning)
+      await sendViolationNotice(message.author, message.member, { category: hit.category, reason: hit.reason });
       return;
     }
 
@@ -375,6 +491,10 @@ client.on(Events.MessageCreate, async (message) => {
 
     if (v.action === "remove" && config.discordDeleteRemoved) {
       await message.delete().catch(() => log(`[discord] could not delete ${message.id} (missing Manage Messages?)`));
+    }
+    // Private warning ladder for Mind-removed content too.
+    if (v.action === "remove") {
+      await sendViolationNotice(message.author, message.member, { category: v.category, reason: v.reason });
     }
   } catch (err) {
     log(`[discord] error: ${err.message}`);

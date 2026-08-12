@@ -29,6 +29,10 @@ in the background; you never have to open it.
    - Bot permissions: **View Channels** + **Send Messages** +
      **Manage Messages** (Manage Messages is what lets the bot
      auto-delete "remove" rulings)
+   - **Enforcement permissions** (for `!enforce` to actually timeout /
+     ban): **Moderate Members** (timeout) + **Ban Members** (ban). If
+     you skip them, `!enforce` still works for `restrict` in-app but
+     reports permission errors on Discord actions.
    - Copy the generated URL, open it in a browser, pick your server,
      Authorize.
 
@@ -87,6 +91,9 @@ You should see `Discord bot online as Hearthkeeper#1234`.
     auto-delete dictionary from chat (takes effect immediately)
   - `!stats` — member violation stats
   - `!digest` — today's community-health report from the Mind
+  - `!enforce [restrict|ban]` — apply the latest escalation rulings to
+    Discord: `restrict` → 24h timeout, `ban` → server ban (needs
+    Moderate Members / Ban Members; human-confirmed, never automatic)
   - `!help` — command list
 
 ## Instant blacklist & whitelist (auto-handled dictionaries)
