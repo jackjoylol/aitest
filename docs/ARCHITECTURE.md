@@ -163,6 +163,6 @@ corrections for the case law.
 | `src/discord.js` | Discord bot: message intake → review → verdict back in chat |
 | `src/scheduler.js` | cron jobs (auto-review / digest / escalation) |
 | `ui/` | vanilla-JS dashboard (no build step) |
-| `scripts/` | `setup` / `seed` / `demo` |
+| `scripts/` | `setup` / `reset` / `demo` |
 | `test/` | `node --test` protocol + mock behaviour tests |
 | `norms/community.md` | the community constitution taught to the Mind |

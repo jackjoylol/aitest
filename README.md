@@ -48,7 +48,7 @@ scheduler acts without being asked.
 cd hearthkeeper
 cp .env.example .env        # HEARTHKEEPER_MOCK=1 for offline demo
 npm install
-npm run seed                # load the two-day demo community
+npm run reset               # clean slate — every record is REAL activity
 npm start                   # → http://localhost:4173
 ```
 
@@ -79,7 +79,7 @@ hearthkeeper/
 ├── src/            server: minds client, moderation protocol, db,
 │                   scheduler, api, discord bot, blacklist/whitelist
 ├── ui/             vanilla-JS dashboard (no build step)
-├── scripts/        setup / seed / demo
+├── scripts/        setup / reset / demo
 ├── test/           node --test unit tests (protocol, mock, dictionaries)
 ├── norms/          your community's constitution (taught to the Mind)
 ├── blacklist.txt   instant auto-delete dictionary (Mind learns it too)
@@ -94,7 +94,7 @@ hearthkeeper/
 | **Minds Integration Depth** | The Mind decides *everything*: every verdict, escalation and digest comes from it (single conversation alias, Soul memory, cognition tracked live in the UI) |
 | **Creator-Economy Problem Fit** | Norms are per-community (`norms/community.md`), cost is ~1 cognition turn per 8 posts, works solo or with a mod team via Circles/Telegram |
 | **Innovation & Creativity** | Creator-override correction loop; index-based batch protocol (reliable JSON at low cost); three-layer persistence story |
-| **Execution & Completeness** | Runnable in mock mode with zero credentials; seeded demo; dashboard; Discord bot; webhook; scheduler; 36 unit tests; full docs |
+| **Execution & Completeness** | Runnable in mock mode with zero credentials; real-data testing via `npm run reset`; dashboard; Discord bot; webhook; scheduler; 36 unit tests; full docs |
 | **Viability & Scalability** | Webhook intake = any platform; Mind scales on the platform; audit log makes the product auditable for platform TOS compliance |
 
 ## Tech

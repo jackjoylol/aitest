@@ -80,7 +80,7 @@ Minds by Animoca Brands.*
 
 - [ ] Real Mind created + `MINDS_BUILDER_API_KEY` in `.env`
 - [ ] `npm run setup` passes (alias bound)
-- [ ] `npm run seed` loaded the demo community
+- [ ] `npm run reset` gave a clean slate (no demo data)
 - [ ] `npm start` → dashboard loads, chip shows 🟢 Mind name
 - [ ] Review queue works (allow spare time — real replies take time)
 - [ ] Restart the server once to film the persistence shot

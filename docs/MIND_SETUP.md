@@ -65,7 +65,8 @@ npm run setup               # lists Minds, binds the conversation alias, shows c
 npm start                   # http://localhost:4173
 ```
 
-`npm run seed` loads the demo community; the **Review queue →** button
+`npm run reset` gives a clean slate — every verdict and report then
+reflects REAL activity only; the **Review queue →** button
 then sends your first real batch to the Mind.
 
 ## 4. Recommended: equip Skills from the Bazaar
