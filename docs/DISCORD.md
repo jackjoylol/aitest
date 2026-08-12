@@ -92,7 +92,7 @@ You should see `Discord bot online as Hearthkeeper#1234`.
   - `!stats` — member violation stats
   - `!digest` — today's community-health report from the Mind
   - `!enforce [restrict|ban]` — apply the latest escalation rulings to
-    Discord: `restrict` → 24h timeout, `ban` → server ban (needs
+    Discord: `restrict` → 10-minute timeout, `ban` → server ban (needs
     Moderate Members / Ban Members; human-confirmed, never automatic)
   - `!help` — command list
 

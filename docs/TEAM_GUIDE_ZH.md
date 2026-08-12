@@ -62,7 +62,7 @@
 - **怎么演示**：Discord 输入 `!audit`，bot 依次回贴三部分结果。**这是视频里最省事的"一条龙"镜头**。
 
 ### 11. 真实处罚执行 `!enforce`
-- **是什么**：升级裁决（restrict/ban）默认只记录状态；`!enforce` 让版主确认后**真正执行到 Discord**：`restrict` → 禁言 24 小时，`ban` → 封禁。
+- **是什么**：升级裁决（restrict/ban）默认只记录状态；`!enforce` 让版主确认后**真正执行到 Discord**：`restrict` → 禁言 10 分钟，`ban` → 封禁。
 - **为什么手动**：封禁是破坏性操作，AI 裁决 + 人工确认是正确姿势。
 - **怎么演示**：`!audit` 出裁决 → `!enforce` → bot 真的禁言/封禁违规小号（需要 bot 有 Timeout Members / Ban Members 权限）。
 - 用法：`!enforce`（全部）/ `!enforce restrict` / `!enforce ban`。

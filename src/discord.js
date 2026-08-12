@@ -407,7 +407,7 @@ async function sendViolationNotice(author, member, { category = "unknown", reaso
 /**
  * `!enforce` — apply the latest escalation rulings to Discord itself.
  * Human-confirmed and destructive, so it never runs automatically:
- *   restrict → 24h timeout (needs "Moderate Members")
+ *   restrict → 10-min timeout (needs "Moderate Members")
  *   ban      → server ban (needs "Ban Members")
  * Usage: `!enforce` | `!enforce restrict` | `!enforce ban`
  */
@@ -447,8 +447,8 @@ async function enforce(message, cmd, dest) {
         results.push(`🔨 Banned **${member.user.tag}** — ${m.reason}`);
         log(`[enforce] banned ${member.user.tag} (${discordId})`);
       } else {
-        await member.timeout(24 * 3600 * 1000, `Hearthkeeper: ${m.reason}`);
-        results.push(`⏱️ Timed out 24h **${member.user.tag}** — ${m.reason}`);
+        await member.timeout(MUTE_MS, `Hearthkeeper: ${m.reason}`);
+        results.push(`⏱️ Timed out 10min **${member.user.tag}** — ${m.reason}`);
         log(`[enforce] timeout ${member.user.tag} (${discordId})`);
       }
     } catch (err) {
