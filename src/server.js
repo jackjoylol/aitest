@@ -159,8 +159,9 @@ async function runReview() {
     for (const v of parsed.verdicts) {
       const postId = byIndex.get(v.postId);
       if (!postId) continue; // verdict references an unknown index — ignore
+      const post = batch.find((p) => p.id === postId);
       applyDecision(db, { postId, action: v.action, severity: v.severity, category: v.category, reason: v.reason, source: "mind" });
-      applied.push({ ...v, postId });
+      applied.push({ ...v, postId, user_name: post?.user_name ?? "" });
 
       // Learning loop: the Mind named the keywords behind its ruling —
       // file them into the blacklist (remove) or whitelist (allow) so
@@ -188,7 +189,7 @@ async function runReview() {
           postId: p.id, action: "flag", severity: "medium", category: "other",
           reason: "No verdict returned by the Mind — human review", source: "system",
         });
-        applied.push({ postId: p.id, action: "flag", severity: "medium", category: "other", reason: "No verdict returned by the Mind" });
+        applied.push({ postId: p.id, action: "flag", severity: "medium", category: "other", reason: "No verdict returned by the Mind", user_name: p.user_name });
       }
     }
     log(`[review] batch=${id} — ${applied.length} verdicts applied`);
@@ -368,12 +369,15 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
   // Deterministic dictionaries, checked before the Mind:
   // 1. blacklist hit → instant remove (no Mind call)
   // 2. whitelist hit → instant allow (no Mind call)
-  // 3. otherwise → queued for the Mind
+  // 3. message flood (same user, short window) → instant remove
+  // 4. otherwise → queued for the Mind
   const blackTerms = loadBlacklist();
   const whiteTerms = loadWhitelist();
   const created = [];
   const blacklisted = [];
   const whitelisted = [];
+  const flooded = [];
+  const floodSince = new Date(Date.now() - config.floodWindowMs).toISOString();
   for (const p of posts) {
     const bad = matchBlacklist(p.text, blackTerms);
     if (bad) {
@@ -397,10 +401,24 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
       log(`[ingest] ${p.id} auto-allowed (whitelist: "${good}")`);
       continue;
     }
+    // Flood guard: same member flooding the queue inside the window.
+    const recent = db.prepare(
+      "SELECT COUNT(*) AS c FROM posts WHERE user_id = ? AND posted_at >= ?"
+    ).get(p.userId, floodSince);
+    if (recent.c >= config.floodMax) {
+      addPost(db, p);
+      const post = applyDecision(db, {
+        postId: p.id, action: "remove", severity: "medium", category: "spam",
+        reason: `Message flood: ${recent.c + 1} posts from this member within ${Math.round(config.floodWindowMs / 1000)}s`, source: "system",
+      });
+      flooded.push({ ...post, matchedTerm: "flood" });
+      log(`[ingest] ${p.id} auto-removed (flood: ${recent.c + 1} in window)`);
+      continue;
+    }
     created.push(addPost(db, p));
   }
-  log(`[ingest] ${created.length} queued, ${blacklisted.length} blacklisted, ${whitelisted.length} whitelisted`);
-  res.status(201).json({ created: created.length, posts: created, blacklisted, whitelisted });
+  log(`[ingest] ${created.length} queued, ${blacklisted.length} blacklisted, ${whitelisted.length} whitelisted, ${flooded.length} flooded`);
+  res.status(201).json({ created: created.length, posts: created, blacklisted, whitelisted, flooded });
 });
 
 // Review the queue with the Mind (also called by the scheduler).

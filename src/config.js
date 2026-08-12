@@ -47,6 +47,11 @@ const config = {
   blacklistPath: path.resolve(ROOT, process.env.BLACKLIST_PATH?.trim() || "blacklist.txt"),
   whitelistPath: path.resolve(ROOT, process.env.WHITELIST_PATH?.trim() || "whitelist.txt"),
 
+  // Flood guard: same member posting more than floodMax messages within
+  // floodWindowMs is auto-removed as spam.
+  floodWindowMs: int(process.env.FLOOD_WINDOW_MS, 10_000),
+  floodMax: int(process.env.FLOOD_MAX, 5),
+
   // Community norms — loaded by the app and taught to the Mind at
   // onboarding. Edit norms/community.md to match your community.
   normsPath: path.resolve(ROOT, "norms/community.md"),

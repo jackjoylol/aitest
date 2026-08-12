@@ -53,6 +53,11 @@ const BAN_THRESHOLD = 3; // 3rd violation → ban warning (enforcement stays man
 // there instead of the channel the message came from.
 let outChannel = null;
 
+// One review loop at a time: messages queue up while the Mind works,
+// then get ruled in batches — nothing is silently skipped.
+let reviewLoopRunning = false;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 const log = (...args) => console.log(new Date().toISOString(), ...args);
 
 async function api(path, body) {
@@ -67,6 +72,65 @@ async function api(path, body) {
     signal: AbortSignal.timeout(200_000),
   });
   return { status: res.status, body: await res.json().catch(() => ({})) };
+}
+
+/**
+ * Queue review loop. Called after every ingested message; only one loop
+ * runs at a time. It keeps calling /api/review — waiting out any
+ * in-flight round — until the whole queue is drained, then posts every
+ * verdict and performs Discord-side actions (delete + private warning).
+ */
+async function ensureReviewLoop(channel, dest) {
+  if (reviewLoopRunning) return;
+  reviewLoopRunning = true;
+  try {
+    for (let round = 0; round < 8; round++) {
+      let r;
+      try {
+        r = await api("/api/review", {});
+      } catch (err) {
+        log(`[loop] review call failed: ${err.message}`);
+        await sleep(15_000);
+        continue;
+      }
+      if (r.body.skipped) {
+        // The Mind is still ruling on the previous batch — wait, don't drop.
+        await sleep(15_000);
+        continue;
+      }
+      if (r.body.error) {
+        log(`[loop] review error: ${r.body.error}`);
+        await dest.send(`⚠️ Review round failed (moved to human review): ${r.body.error}`).catch(() => {});
+        break;
+      }
+      const verdicts = r.body.verdicts ?? [];
+      if (verdicts.length === 0) break; // queue drained
+
+      const rows = verdicts.map((v) => ({
+        ...v,
+        label: v.user_name ? `${v.user_name}: ` : "",
+      }));
+      await postVerdicts(dest, rows.map((row) => ({ ...row, reason: `${row.label}${row.reason}` })), `✅ Batch reviewed (${verdicts.length} post(s))`);
+
+      // Discord-side actions for messages that were in this batch.
+      for (const v of verdicts) {
+        if (!v.postId || !v.postId.startsWith("discord_")) continue;
+        const msgId = v.postId.slice("discord_".length);
+        const msg = await channel.messages.fetch(msgId).catch(() => null);
+        if (!msg) continue;
+        if (v.action === "remove") {
+          if (config.discordDeleteRemoved) {
+            await msg.delete().catch(() => log(`[loop] could not delete ${msgId}`));
+          }
+          await sendViolationNotice(msg.author, msg.member, { category: v.category, reason: v.reason });
+        }
+        log(`[loop] ${msg.author.username}: ${v.action}/${v.category} (${msgId})`);
+      }
+      if (verdicts.length < 8) break; // batch smaller than max = queue likely drained
+    }
+  } finally {
+    reviewLoopRunning = false;
+  }
 }
 
 /** `!digest` — today's community-health report from the Mind. */
@@ -473,29 +537,23 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    const review = await api("/api/review", {});
-    if (review.body.skipped) {
-      // Another review is running (scheduler or manual) — verdicts will
-      // still land in the audit log; don't spam the channel.
+    // Flood hit → instant remove + warning (no Mind call needed).
+    const floods = queued.body.flooded ?? [];
+    const flood = floods.find((f) => f.id === postId);
+    if (flood) {
+      await message.delete().catch(() => log(`[discord] could not delete ${message.id}`));
+      await dest.send(
+        `🔴 Removed **${message.author.username}**'s message — **message flood**.\nReason: ${flood.reason}`
+      ).catch(() => {});
+      log(`[discord] ${message.author.username}: FLOOD auto-remove`);
+      await sendViolationNotice(message.author, message.member, { category: flood.category, reason: flood.reason });
       return;
     }
-    const verdicts = review.body.verdicts ?? [];
-    const mine = verdicts.filter((v) => v.postId === postId);
-    if (!mine.length) return; // this message wasn't in the batch
 
-    const v = mine[0];
-    await dest.send(
-      `✅ Review complete · **${message.author.username}**\nVerdict: ${EMOJI[v.action]} **${v.action}** (${v.category} / ${v.severity})\nReason: ${v.reason}`
-    );
-    log(`[discord] ${message.author.username}: ${v.action}/${v.category} (${message.id})`);
-
-    if (v.action === "remove" && config.discordDeleteRemoved) {
-      await message.delete().catch(() => log(`[discord] could not delete ${message.id} (missing Manage Messages?)`));
-    }
-    // Private warning ladder for Mind-removed content too.
-    if (v.action === "remove") {
-      await sendViolationNotice(message.author, message.member, { category: v.category, reason: v.reason });
-    }
+    // Normal path: every queued message is guaranteed a ruling — the
+    // review loop waits out in-flight rounds and drains the whole queue,
+    // posting verdicts in batches (no more silently skipped messages).
+    await ensureReviewLoop(message.channel, dest);
   } catch (err) {
     log(`[discord] error: ${err.message}`);
     dest.send("⚠️ Hearthkeeper engine not reachable — run `npm start` first.").catch(() => {});
