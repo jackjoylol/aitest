@@ -166,9 +166,17 @@ async function runReview() {
       // Learning loop: the Mind named the keywords behind its ruling —
       // file them into the blacklist (remove) or whitelist (allow) so
       // future identical content is handled instantly, no Mind call.
+      // Guardrail: a keyword is only learned if it ACTUALLY appears in
+      // the post text — this stops the Mind from filing user IDs,
+      // reason phrases or other hallucinated terms into the dictionary.
       // Never let a file-write error abort the review itself.
       try {
+        const postText = (post?.text ?? "").toLowerCase();
         for (const kw of v.keywords ?? []) {
+          if (!postText.includes(kw.toLowerCase())) {
+            log(`[learn] skipped "${kw}" (${postId}) — not in post text`);
+            continue;
+          }
           if (v.action === "remove") {
             const r = addBlacklistTerm(kw);
             if (r.ok) log(`[learn] blacklist += "${kw}" (${postId})`);
