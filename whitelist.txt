@@ -1,0 +1,25 @@
+# Hearthkeeper whitelist — safe-word dictionary.
+#
+# One term per line. `#` starts a comment. MATCHING RULES: English/ASCII
+# terms match as WHOLE WORDS (word boundaries); Chinese/non-ASCII terms
+# match as substrings. Messages containing a whitelisted term are
+# allowed INSTANTLY — no Mind call, no waiting.
+# The blacklist is checked FIRST and wins over the whitelist.
+#
+# The Mind can also add words here automatically: when it rules a post
+# "allow" and names the keywords behind its ruling, they are filed into
+# this file. Manage manually with the `!whitelist` Discord commands.
+
+# ── safe / on-topic vocabulary (examples) ───────────────────────────
+wip
+critique welcome
+feedback
+# art share
+hh
+saab
+painterly lighting
+warm palette
+5yo drew it
+anatomy
+3d sculpting
+feedback thread

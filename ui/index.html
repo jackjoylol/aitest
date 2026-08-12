@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hearthkeeper — community steward</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="logo">🛡️</span>
+      <div>
+        <h1>Hearthkeeper</h1>
+        <p class="tagline">an always-on community steward, powered by Minds</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="mind-chip" class="chip">…</span>
+      <span id="cognition-chip" class="chip hidden">⚡ —</span>
+      <span id="onboard-chip" class="chip hidden">🧠 —</span>
+      <button id="btn-review" class="btn primary">Review queue →</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="queue">Queue <span id="tab-queue-count" class="count"></span></button>
+    <button class="tab" data-tab="decisions">Decisions</button>
+    <button class="tab" data-tab="members">Members</button>
+    <button class="tab" data-tab="reports">Reports</button>
+    <button class="tab" data-tab="chat">Mind chat</button>
+  </nav>
+
+  <main>
+    <!-- QUEUE -->
+    <section id="tab-queue" class="panel active">
+      <div class="panel-head">
+        <h2>Inbox</h2>
+        <div class="actions">
+          <button id="btn-digest" class="btn ghost">Daily digest</button>
+          <button id="btn-escalate" class="btn ghost">Escalation review</button>
+          <button id="btn-onboard" class="btn ghost">Re-teach norms</button>
+        </div>
+      </div>
+      <form id="post-form" class="post-form">
+        <input id="pf-user" placeholder="Member name" required />
+        <input id="pf-channel" placeholder="Channel (general)" />
+        <input id="pf-text" placeholder="New message… (incoming posts land here as pending)" required />
+        <button class="btn" type="submit">Queue post</button>
+      </form>
+      <div id="queue-list" class="card-list"></div>
+    </section>
+
+    <!-- DECISIONS -->
+    <section id="tab-decisions" class="panel">
+      <div class="panel-head"><h2>Decision log</h2><span class="hint">every verdict, override and follow-up — from the Mind or the creator</span></div>
+      <div id="decision-list" class="card-list"></div>
+    </section>
+
+    <!-- MEMBERS -->
+    <section id="tab-members" class="panel">
+      <div class="panel-head"><h2>Members</h2><span class="hint">status comes from the Mind's escalation reviews</span></div>
+      <div id="member-list" class="card-list"></div>
+    </section>
+
+    <!-- REPORTS -->
+    <section id="tab-reports" class="panel">
+      <div class="panel-head"><h2>Community health</h2><span class="hint">the Mind writes a digest every day, on its own</span></div>
+      <div id="report-list" class="card-list"></div>
+    </section>
+
+    <!-- MIND CHAT -->
+    <section id="tab-chat" class="panel">
+      <div class="panel-head"><h2>Talk to your steward</h2><span class="hint">this is the real Mind — same Soul that rules on every post</span></div>
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="post-form">
+        <input id="chat-input" placeholder="Ask the steward anything…" autocomplete="off" />
+        <button class="btn primary" type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>Hearthkeeper · Minds by Animoca Brands · <span id="mode-label"></span></footer>
+  <script src="/app.js"></script>
+</body>
+</html>

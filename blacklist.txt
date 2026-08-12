@@ -1,0 +1,61 @@
+# Hearthkeeper blacklist — instant auto-delete dictionary.
+#
+# One term per line. `#` starts a comment (lines are ignored).
+# MATCHING RULES:
+#   - English/ASCII terms match as WHOLE WORDS (word boundaries):
+#     "sb" blocks "he is sb" but NOT "alsbachite" or "absorb".
+#   - Chinese/non-ASCII terms match as substrings: "傻逼" blocks
+#     "你好傻逼啊".
+# Edit this file any time — it takes effect immediately, no restart
+# needed. Use the `!blacklist add|remove` Discord commands to manage
+# it from chat.
+#
+# When a message hits a term here it is deleted instantly with
+# reason: "Blacklisted term: …" — no Mind call, no waiting.
+
+# ── abuse / harassment (EN) ─────────────────────────────────────────
+fuck you
+fuck yo
+fuck off
+wcnm
+sb
+stupid ass
+kill yourself
+
+# ── abuse / harassment (中文) ───────────────────────────────────────
+傻逼
+傻b
+垃圾
+去死
+脑残
+白痴
+
+# ── crypto spam (uncomment to enable instant spam removal) ──────────
+# free crypto
+# airdrop
+# 100x
+# claim your
+# onlyfans
+cnmb
+nmsl
+fku
+n.m.s.l
+c/n/m/b
+cnm
+f.uc.k
+fuck
+/kick
+NFT
+dm me
+trash
+uninstall
+FREE CRYPTO AIRDROP
+scam link
+free coins
+BUY NOW
+100x
+free crypto
+first 10 dms
+mods are stupid
+onlyfans
+exclusive art

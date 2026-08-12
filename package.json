@@ -1,0 +1,26 @@
+{
+  "name": "hearthkeeper",
+  "version": "1.0.0",
+  "description": "Hearthkeeper — an always-on community steward powered by a Minds agent. Intelligent moderation that learns your community's norms, remembers every ruling, and follows up autonomously.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "discord": "node src/discord.js",
+    "setup": "node scripts/setup.js",
+    "seed": "node scripts/seed.js",
+    "demo": "node scripts/demo.js",
+    "test": "node --test test/moderation.test.js test/minds.mock.test.js test/blacklist.test.js"
+  },
+  "dependencies": {
+    "@animocabrands/minds-client-lib": "^0.1.3",
+    "better-sqlite3": "^12.4.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3"
+  },
+  "license": "MIT"
+}
