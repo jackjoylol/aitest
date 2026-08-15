@@ -23,7 +23,8 @@ in the background; you never have to open it.
 2. Left menu → **Bot** → **Reset Token** → **Copy** (shown once).
 3. (Optional but recommended) under **Bot → Privileged Gateway
    Intents**, enable **MESSAGE CONTENT INTENT** — required for the bot
-   to read message text.
+   to read message text. Also enable **SERVER MEMBERS INTENT** if you
+   want the Mind to welcome new members (see below).
 4. Left menu → **OAuth2 → URL Generator**:
    - Scopes: **bot**
    - Bot permissions: **View Channels** + **Send Messages** +
@@ -35,6 +36,25 @@ in the background; you never have to open it.
      reports permission errors on Discord actions.
    - Copy the generated URL, open it in a browser, pick your server,
      Authorize.
+   - ⚠️ **Re-invite after enabling SERVER MEMBERS INTENT** — the intent
+     change only takes effect through a fresh authorization link.
+
+## New-member welcome (Mind says hello)
+
+When someone joins the server, the **Mind writes a personalised welcome
+message greeting them by name**, and the bot posts it to a text channel:
+
+1. Enable **SERVER MEMBERS INTENT** (step 3 above) and re-invite the bot.
+2. Create a channel (e.g. `#welcome`), copy its ID (Developer Mode →
+   right-click → Copy Channel ID), and set `DISCORD_WELCOME_CHANNEL_ID`
+   in `.env`. If left empty, the bot uses the server's system channel
+   (if one is set).
+3. Restart the bot (`Ctrl+C` → `npm run discord`).
+4. Test: invite a test account to the server — within ~30–90 s the Mind
+   posts a welcome naming the member. If the Mind is unreachable the bot
+   falls back to a plain template so nobody is left unwelcomed.
+
+Each welcome costs one cognition turn on the Mind.
 
 ## 2. Configure `.env`
 

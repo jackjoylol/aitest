@@ -41,6 +41,7 @@ const config = {
   discordChannelIds: (process.env.DISCORD_CHANNEL_IDS ?? "")
     .split(",").map((s) => s.trim()).filter(Boolean),
   discordOutputChannelId: process.env.DISCORD_OUTPUT_CHANNEL_ID?.trim() || null,
+  discordWelcomeChannelId: process.env.DISCORD_WELCOME_CHANNEL_ID?.trim() || null,
   discordDeleteRemoved: ["1", "true", "yes"].includes((process.env.DISCORD_DELETE_REMOVED ?? "").toLowerCase()),
 
   // Instant blacklist / whitelist (see blacklist.txt / whitelist.txt)

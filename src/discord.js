@@ -40,6 +40,9 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    // For the new-member welcome: requires "SERVER MEMBERS INTENT"
+    // enabled in the Developer Portal (see docs/DISCORD.md).
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
@@ -557,6 +560,41 @@ client.on(Events.MessageCreate, async (message) => {
   } catch (err) {
     log(`[discord] error: ${err.message}`);
     dest.send("⚠️ Hearthkeeper engine not reachable — run `npm start` first.").catch(() => {});
+  }
+});
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    if (member.user.bot) return;
+
+    // Welcome channel: configured ID, else the server's system channel.
+    let channel = null;
+    if (config.discordWelcomeChannelId) {
+      channel = await client.channels.fetch(config.discordWelcomeChannelId).catch(() => null);
+    }
+    if (!channel) channel = member.guild.systemChannel;
+    if (!channel || !channel.isTextBased()) {
+      log(`[welcome] no text welcome channel for ${member.user.username} (set DISCORD_WELCOME_CHANNEL_ID)`);
+      return;
+    }
+
+    const name = member.user.username;
+    let message = `Welcome to the server, ${name}! 🎉`;
+    // Let the Mind write the welcome (it greets BY NAME). Falls back to
+    // the template if the Mind is slow or unreachable.
+    try {
+      const r = await api("/api/chat", {
+        text: `A new member named "${name}" just joined the "${member.guild.name}" community. Write a short, warm welcome message (2-3 sentences) that greets them BY NAME and fits a friendly art-sharing community. Reply with ONLY the welcome message, no markdown.`,
+      });
+      if (r.body.reply) message = r.body.reply;
+    } catch (err) {
+      log(`[welcome] Mind unavailable for ${name}, using template: ${err.message}`);
+    }
+
+    await channel.send(message);
+    log(`[welcome] welcomed ${name} in #${channel.name ?? channel.id}`);
+  } catch (err) {
+    log(`[welcome] failed: ${err.message}`);
   }
 });
 
