@@ -47,6 +47,8 @@ const config = {
   // Instant blacklist / whitelist (see blacklist.txt / whitelist.txt)
   blacklistPath: path.resolve(ROOT, process.env.BLACKLIST_PATH?.trim() || "blacklist.txt"),
   whitelistPath: path.resolve(ROOT, process.env.WHITELIST_PATH?.trim() || "whitelist.txt"),
+  // Banned members (see banned_users.txt) — their messages are removed instantly.
+  bannedUsersPath: path.resolve(ROOT, process.env.BANNED_USERS_PATH?.trim() || "banned_users.txt"),
 
   // Flood guard: same member posting more than floodMax messages within
   // floodWindowMs is auto-removed as spam.

@@ -26,7 +26,8 @@
 import config from "./config.js";
 import {
   loadBlacklist, loadWhitelist, addBlacklistTerm, removeBlacklistTerm,
-  addWhitelistTerm, removeWhitelistTerm,
+  addWhitelistTerm, removeWhitelistTerm, loadBannedUsers,
+  addBannedUser, removeBannedUser,
 } from "./blacklist.js";
 
 if (!config.discordToken) {
@@ -302,6 +303,48 @@ async function blacklist(message, cmd, dest) {
   }
 }
 
+/** `!bannedlist` — list blacklisted members. */
+async function bannedList(dest) {
+  const banned = loadBannedUsers();
+  if (banned.length === 0) return dest.send("No members are blacklisted.");
+  return dest.send(`⛔ Blacklisted members (${banned.length}):\n${banned.map((u) => `• ${u}`).join("\n")}`);
+}
+
+/**
+ * `!banuser @member` — blacklist a member (their messages are removed
+ * instantly from now on) and try to ban them from the server.
+ */
+async function banUser(message, dest) {
+  const target = message.mentions.members?.first() ?? null;
+  if (!target) return dest.send("Usage: `!banuser @member` — mention the member to blacklist.");
+  const userId = `u_${target.id}`;
+  const res = addBannedUser(userId);
+  const lines = [];
+  if (res.ok) lines.push(`⛔ Added **${target.user.tag}** to the blacklist. Their messages will be removed instantly.`);
+  else lines.push(`⚠️ ${res.error}`);
+
+  // Optionally also ban them from the server (needs Ban Members).
+  try {
+    await target.ban({ reason: "Hearthkeeper: member blacklisted by moderator" });
+    lines.push(`🔨 Also banned **${target.user.tag}** from the server.`);
+  } catch (err) {
+    lines.push(`ℹ️ (Server ban failed — missing Ban Members permission? ${err.message})`);
+  }
+  log(`[banuser] ${target.user.tag} (${userId})`);
+  return dest.send(lines.join("\n"));
+}
+
+/** `!unbanuser @member` — remove a member from the blacklist. */
+async function unbanUser(message, dest) {
+  const target = message.mentions.members?.first() ?? null;
+  if (!target) return dest.send("Usage: `!unbanuser @member` — mention the member to unblacklist.");
+  const userId = `u_${target.id}`;
+  const res = removeBannedUser(userId);
+  if (!res.ok) return dest.send(`⚠️ ${res.error}`);
+  log(`[unbanuser] ${target.user.tag} (${userId})`);
+  return dest.send(`✅ Removed **${target.user.tag}** from the blacklist. Their messages will be reviewed normally again.`);
+}
+
 /** `!whitelist list|add|remove <term>` — manage the whitelist file. */
 async function whitelist(message, cmd, dest) {
   const parts = cmd.split(/\s+/);
@@ -496,6 +539,9 @@ client.on(Events.MessageCreate, async (message) => {
       "`!decide <postId> <allow|flag|remove> [note]` — human ruling (taught to the Mind)\n" +
       "`!blacklist add|remove|list <term>` — manage the auto-delete dictionary\n" +
       "`!whitelist add|remove|list <term>` — manage the safe-word dictionary\n" +
+      "`!banuser @member` — blacklist a member (messages removed instantly)\n" +
+      "`!unbanuser @member` — remove from blacklist\n" +
+      "`!bannedlist` — list blacklisted members\n" +
       "`!stats` — violation stats\n" +
       "`!digest` — today's health report\n" +
       "`!enforce` — apply restrict/ban rulings to Discord (timeout/ban)"
@@ -507,6 +553,9 @@ client.on(Events.MessageCreate, async (message) => {
   if (isCmd(cmd, "decide")) return decide(message, cmd, dest);
   if (isCmd(cmd, "blacklist")) return blacklist(message, cmd, dest);
   if (isCmd(cmd, "whitelist")) return whitelist(message, cmd, dest);
+  if (isCmd(cmd, "banuser")) return banUser(message, dest);
+  if (isCmd(cmd, "unbanuser")) return unbanUser(message, dest);
+  if (isCmd(cmd, "bannedlist")) return bannedList(dest);
   if (isCmd(cmd, "stats")) return stats(dest);
   if (isCmd(cmd, "digest")) return runDigest(dest);
   if (isCmd(cmd, "enforce")) return enforce(message, cmd, dest);

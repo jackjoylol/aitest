@@ -22,7 +22,7 @@ import * as mod from "./moderation.js";
 import { startScheduler } from "./scheduler.js";
 import {
   loadBlacklist, loadWhitelist, matchBlacklist, matchWhitelist,
-  addBlacklistTerm, addWhitelistTerm,
+  addBlacklistTerm, addWhitelistTerm, loadBannedUsers, isUserBanned,
 } from "./blacklist.js";
 
 // ── Bootstrap ───────────────────────────────────────────────────────
@@ -374,19 +374,32 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
   const posts = normalizePostInput(req.body);
   if (posts.length === 0) return res.status(400).json({ error: "No valid posts in body" });
 
-  // Deterministic dictionaries, checked before the Mind:
-  // 1. blacklist hit → instant remove (no Mind call)
-  // 2. whitelist hit → instant allow (no Mind call)
-  // 3. message flood (same user, short window) → instant remove
-  // 4. otherwise → queued for the Mind
+  // Deterministic checks, done before the Mind:
+  // 1. member blacklisted → instant remove (whatever the content)
+  // 2. blacklist term hit → instant remove
+  // 3. whitelist term hit → instant allow
+  // 4. message flood (same user, short window) → instant remove
+  // 5. otherwise → queued for the Mind
   const blackTerms = loadBlacklist();
   const whiteTerms = loadWhitelist();
+  const banned = loadBannedUsers();
   const created = [];
   const blacklisted = [];
   const whitelisted = [];
   const flooded = [];
+  const memberBanned = [];
   const floodSince = new Date(Date.now() - config.floodWindowMs).toISOString();
   for (const p of posts) {
+    if (isUserBanned(p.userId, banned)) {
+      addPost(db, p);
+      const post = applyDecision(db, {
+        postId: p.id, action: "remove", severity: "high", category: "other",
+        reason: "Member is blacklisted (拉黑用户)", source: "system",
+      });
+      memberBanned.push({ ...post, matchedTerm: "banned-member" });
+      log(`[ingest] ${p.id} auto-removed (member blacklisted: ${p.userId})`);
+      continue;
+    }
     const bad = matchBlacklist(p.text, blackTerms);
     if (bad) {
       addPost(db, p);
@@ -425,8 +438,8 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
     }
     created.push(addPost(db, p));
   }
-  log(`[ingest] ${created.length} queued, ${blacklisted.length} blacklisted, ${whitelisted.length} whitelisted, ${flooded.length} flooded`);
-  res.status(201).json({ created: created.length, posts: created, blacklisted, whitelisted, flooded });
+  log(`[ingest] ${created.length} queued, ${blacklisted.length} blacklisted, ${whitelisted.length} whitelisted, ${flooded.length} flooded, ${memberBanned.length} member-banned`);
+  res.status(201).json({ created: created.length, posts: created, blacklisted, whitelisted, flooded, memberBanned });
 });
 
 // Review the queue with the Mind (also called by the scheduler).

@@ -90,3 +90,29 @@ export const addBlacklistTerm = (term, path = config.blacklistPath) => mutateTer
 export const removeBlacklistTerm = (term, path = config.blacklistPath) => mutateTerm(path, term, "remove");
 export const addWhitelistTerm = (term, path = config.whitelistPath) => mutateTerm(path, term, "add");
 export const removeWhitelistTerm = (term, path = config.whitelistPath) => mutateTerm(path, term, "remove");
+
+// ── User blacklist (拉黑用户) ───────────────────────────────────────
+// banned_users.txt — one user id per line (u_<discordId>), `#` comment.
+// A blacklisted member's messages are removed INSTANTLY on ingest,
+// whatever the content.
+
+export function loadBannedUsers(path = config.bannedUsersPath) {
+  return loadTerms(path);
+}
+
+export function isUserBanned(userId, banned = loadBannedUsers()) {
+  return banned.includes(userId);
+}
+
+export function addBannedUser(userId, path = config.bannedUsersPath) {
+  const clean = userId.trim();
+  if (!clean) return { ok: false, error: "empty user id" };
+  const res = mutateTerm(path, clean, "add");
+  return res;
+}
+
+export function removeBannedUser(userId, path = config.bannedUsersPath) {
+  const clean = userId.trim();
+  if (!clean) return { ok: false, error: "empty user id" };
+  return mutateTerm(path, clean, "remove");
+}

@@ -10,6 +10,7 @@ import path from "node:path";
 import {
   loadBlacklist, matchBlacklist, addBlacklistTerm, removeBlacklistTerm,
   loadWhitelist, matchWhitelist, addWhitelistTerm, removeWhitelistTerm,
+  loadBannedUsers, isUserBanned, addBannedUser, removeBannedUser,
 } from "../src/blacklist.js";
 
 function tmpFile(content) {
@@ -124,6 +125,21 @@ test("addBlacklistTerm rejects comment-looking terms", () => {
   const p = tmpFile("sb\n");
   const r = addBlacklistTerm("#foo", p);
   assert.equal(r.ok, false);
+  fs.unlinkSync(p);
+});
+
+test("banned users: load / is / add / remove", () => {
+  const p = tmpFile("# comments\nu_123\n");
+  assert.deepEqual(loadBannedUsers(p), ["u_123"]);
+  assert.equal(isUserBanned("u_123", ["u_123"]), true);
+  assert.equal(isUserBanned("u_999", ["u_123"]), false);
+  const added = addBannedUser("u_456", p);
+  assert.equal(added.ok, true);
+  assert.ok(loadBannedUsers(p).includes("u_456"));
+  const removed = removeBannedUser("u_123", p);
+  assert.equal(removed.ok, true);
+  assert.ok(!loadBannedUsers(p).includes("u_123"));
+  assert.equal(removeBannedUser("u_nope", p).ok, false);
   fs.unlinkSync(p);
 });
 
