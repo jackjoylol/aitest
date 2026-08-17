@@ -109,6 +109,11 @@ You should see `Discord bot online as Hearthkeeper#1234`.
     correction is taught back to the Mind (override loop)
   - `!blacklist add|remove|list <term>` — manage the instant
     auto-delete dictionary from chat (takes effect immediately)
+  - `!banuser @member` — blacklist a member: their messages are removed
+    instantly (whatever the content) and an optional server ban is
+    attempted
+  - `!unbanuser @member` — remove a member from the blacklist
+  - `!bannedlist` — list blacklisted members
   - `!stats` — member violation stats
   - `!digest` — today's community-health report from the Mind
   - `!enforce [restrict|ban]` — apply the latest escalation rulings to
