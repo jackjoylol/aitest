@@ -84,6 +84,29 @@
 - **怎么演示**：小号连发 6 条 "hi" → 前 5 条入队（稍后 bot 回贴判决），第 6 条当场被删 + bot 提示 flood。
 - 阈值可调：`.env` 里 `FLOOD_WINDOW_MS`（窗口毫秒）/ `FLOOD_MAX`（条数）。
 
+### 15. 拉黑用户（user blacklist）
+- **是什么**：把某个成员拉黑后，他发的**所有消息**（不管内容）在 ingest 阶段**即时秒删**，不走 Mind、零成本。拉黑记录在 `banned_users.txt`。
+- **怎么演示**：`!banuser @小号` → 小号发任何消息都被秒删 +（有权限时）尝试封禁该成员；`!bannedlist` 查看；`!unbanuser @小号` 解除。
+- ⚠️ 与 `!enforce` 的区别：`!banuser` 是**消息级拦截**（他发什么都被删但还在服务器），`!enforce ban` 是**真封禁**（踢出服务器）。两套独立。
+
+### 16. 廣告/邀請連結攔截（link guard）
+- **是什么**：Discord 邀请链接（`discord.gg/xxx` 等）和**非白名单的外部链接**在 ingest 阶段被拦截，不走 Mind。
+  - Discord 邀请 → **秒删**（reason: Discord invite link）
+  - 非白名单外部链接（老号）→ **秒删**（reason: External promotional link blocked）
+  - 白名单域名（`allowed_domains.txt`）→ **放行**（支持子域名）
+- **怎么演示**：发 `discord.gg/abc` → 秒删；发 `https://某外网.com` → 老号秒删；`!allowdomain add 你的域名` → 该域名放行。
+- 白名单为空时 = 所有外部链接都拦（推荐，默认全拦再逐步放开）。
+
+### 17. 新号冷卻（newbie cooldown）
+- **是什么**：进群 < 24 小时（可调）的新号，发外部链接 → **不秒删**，而是**持有转人工复核**（flag）——避免误伤刚来的正常用户，同时挡住机器人轰炸/广告小号。
+- **怎么演示**：新号发外链 → bot 提示"new member... held for review"，`!flagged` 能查到待人工复核。
+- 命令：`!onboard cooldown set <小时>` / `!onboard cooldown show`。
+
+### 18. 新成员欢迎（Mind says hello）
+- **是什么**：新成员加入服务器时，**Mind 写个性化欢迎语**（含用户名）发到欢迎频道（30–90 秒生成）。Mind 挂了自动用模板兜底。
+- **怎么演示**：邀请一个小号进服务器 → 欢迎频道出现带名字的欢迎语。
+- ⚠️ 需先在 Discord Developer Portal 开启 **SERVER MEMBERS INTENT** 并重新邀请 bot；配置 `DISCORD_WELCOME_CHANNEL_ID`（不填用系统频道）。每条欢迎耗 1 次 cognition。
+
 ## 三、Discord 命令速查
 
 | 命令 | 作用 |
@@ -97,9 +120,14 @@
 | `!stats` | 成员违规统计 |
 | `!digest` | 今日健康日报 |
 | `!enforce [restrict\|ban]` | 把升级裁决真正执行到 Discord（禁言/封禁） |
+| `!banuser @成员` | 拉黑用户（消息全部秒删，可尝试封禁） |
+| `!unbanuser @成员` | 解除拉黑 |
+| `!bannedlist` | 列出已拉黑用户 |
+| `!onboard cooldown set\|show <小时>` | 新号冷却时长设置/查看 |
+| `!allowdomain add\|remove\|list <域名>` | 管理链接白名单域名 |
 | `!help` | 命令列表 |
 
-**自动行为（无需命令）**：黑名单秒删、白名单秒放行、私信警告阶梯（1 次提醒 / 2 次禁言 10 分钟 / 3 次封禁警告）、每日自动日报。
+**自动行为（无需命令）**：黑名单秒删、白名单秒放行、私信警告阶梯、刷屏防护、Discord邀请拦截、外部链接拦截、新号冷却持有转人工、新成员欢迎、每日自动日报。
 
 ## 四、给拍摄者的提示
 
