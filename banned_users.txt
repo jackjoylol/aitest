@@ -1,12 +1,7 @@
 # Hearthkeeper user blacklist (拉黑用户).
 #
-# One user id per line (format: u_<discordUserId>). `#` starts a
-# comment. A blacklisted member's messages are removed INSTANTLY on
-# ingest — whatever the content, no Mind call.
+# One user id per line (format: u_<discordUserId>). `#` starts a comment.
 #
-# Manage from Discord:
-#   !banuser    @user   — blacklist a member (and try to ban them)
-#   !unbanuser  @user   — remove from the blacklist
-#   !bannedlist         — list blacklisted members
+# Manage from Discord: !banuser @member | !unbanuser @member|<id> | !bannedlist
 #
 # (empty)

@@ -394,13 +394,32 @@ async function banUser(message, dest) {
 
 /** `!unbanuser @member` — remove a member from the blacklist. */
 async function unbanUser(message, dest) {
-  const target = message.mentions.members?.first() ?? null;
-  if (!target) return dest.send("Usage: `!unbanuser @member` — mention the member to unblacklist.");
-  const userId = `u_${target.id}`;
+  // Accept: @mention (still fine) OR a raw user id (needed for members
+  // who were banned and are no longer in the server, so you can't @ them).
+  const mentionTarget = message.mentions.members?.first() ?? null;
+  const raw = (cmdPartsFromMessage(message) ?? []).find((p) => p.length && p !== "!unbanuser");
+  let userId = null;
+  if (mentionTarget) {
+    userId = `u_${mentionTarget.id}`;
+  } else if (raw) {
+    // digits → Discord id; u_<digits> → the stored user key.
+    const trimmed = raw.replace(/^<@!?|>$|^u_/g, "");
+    if (/^\d{6,}$/.test(trimmed)) userId = `u_${trimmed}`;
+    else if (/^u_\d{6,}$/.test(raw)) userId = raw;
+  }
+  if (!userId) {
+    return dest.send("Usage: `!unbanuser @member` or `!unbanuser <user-id>` (use the id if the member was banned and is no longer in the server).");
+  }
   const res = removeBannedUser(userId);
   if (!res.ok) return dest.send(`⚠️ ${res.error}`);
-  log(`[unbanuser] ${target.user.tag} (${userId})`);
-  return dest.send(`✅ Removed **${target.user.tag}** from the blacklist. Their messages will be reviewed normally again.`);
+  log(`[unbanuser] ${userId}`);
+  const label = mentionTarget ? `**${mentionTarget.user.tag}**` : `\`${userId}\``;
+  return dest.send(`✅ Removed ${label} from the blacklist. Their messages will be reviewed normally again.`);
+}
+
+// Small helper: split the message content into command tokens.
+function cmdPartsFromMessage(message) {
+  return message.content.trim().split(/\s+/);
 }
 
 /** `!whitelist list|add|remove <term>` — manage the whitelist file. */async function whitelist(message, cmd, dest) {
