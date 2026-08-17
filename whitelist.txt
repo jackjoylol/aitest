@@ -11,3 +11,5 @@
 # this file. Manage manually with the `!whitelist` Discord commands.
 #
 # (词库已清空 — dictionary is empty)
+hi everyone
+checking in

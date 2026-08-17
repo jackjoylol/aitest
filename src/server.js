@@ -182,6 +182,13 @@ async function runReview() {
       try {
         const postText = (post?.text ?? "").toLowerCase();
         for (const kw of v.keywords ?? []) {
+          // Hard guard: never learn user ids/usernames as keywords —
+          // the Mind sometimes files "u_<digits>" which would block a
+          // specific member's messages on content.
+          if (/^u_\d{6,}$/.test(kw) || /^u_[a-z_]+/.test(kw)) {
+            log(`[learn] skipped "${kw}" (${postId}) — user id, not a term`);
+            continue;
+          }
           if (!postText.includes(kw.toLowerCase())) {
             log(`[learn] skipped "${kw}" (${postId}) — not in post text`);
             continue;

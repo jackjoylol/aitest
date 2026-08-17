@@ -81,6 +81,8 @@ export function buildReviewPrompt({ batchId: id, communityName, posts, normsText
     `- "flag" = suspicious or borderline; a human moderator will take a look.`,
     `- "remove" = clear rule violation.`,
     `- Be consistent with your past rulings: repeat offenders escalate (2nd violation is more severe than the 1st).`,
+    `- Judge ONLY the message content in front of you. Ignore the user id/name and any earlier history — each message is judged on its own. Never rule purely because of a member's identity or a remembered "banned handle".`,
+    `- In "keywords", return only real words/phrases from the MESSAGE TEXT — never user ids, usernames, or category words.`,
     `- The postId is the [n] number in the list below.`,
     `- Reply schema (use exactly these fields):`,
     REVIEW_SCHEMA,
