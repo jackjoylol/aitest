@@ -50,6 +50,15 @@ const config = {
   // Banned members (see banned_users.txt) — their messages are removed instantly.
   bannedUsersPath: path.resolve(ROOT, process.env.BANNED_USERS_PATH?.trim() || "banned_users.txt"),
 
+  // Link guard (廣告/邀請連結攔截) — see allowed_domains.txt.
+  allowedDomainsPath: path.resolve(ROOT, process.env.ALLOWED_DOMAINS_PATH?.trim() || "allowed_domains.txt"),
+  // New-member cooldown: members who joined less than this many hours
+  // ago have external links blocked and messages held for review.
+  newbieCooldownHours: int(process.env.NEWBIE_COOLDOWN_HOURS, 24),
+  // Hold-in-review is the default for newbie content; for normal members
+  // an external link is removed instantly (could also hold for review).
+  holdNewbieForReview: ["1", "true", "yes"].includes((process.env.HOLD_NEWBIE_FOR_REVIEW ?? "1").toLowerCase()),
+
   // Flood guard: same member posting more than floodMax messages within
   // floodWindowMs is auto-removed as spam.
   floodWindowMs: int(process.env.FLOOD_WINDOW_MS, 10_000),

@@ -23,6 +23,7 @@
 //
 // Setup: see docs/DISCORD.md.
 
+import { loadAllowedDomains } from "./linkguard.js";
 import config from "./config.js";
 import {
   loadBlacklist, loadWhitelist, addBlacklistTerm, removeBlacklistTerm,
@@ -303,6 +304,63 @@ async function blacklist(message, cmd, dest) {
   }
 }
 
+/** `!onboard cooldown [set|show|<hours>]` — new-member cooldown control. */
+async function onboard(message, cmd, dest) {
+  const parts = cmd.split(/\s+/);
+  const sub = parts[1]; // "cooldown"
+  const action = parts[2]; // "set" | "show" | a number
+  if (sub !== "cooldown") {
+    return dest.send("Usage: `!onboard cooldown set <hours>` | `!onboard cooldown show`");
+  }
+  try {
+    if (typeof action === "string" && action === "show") {
+      const s = await api("/api/settings");
+      return dest.send(`🛡️ New-member cooldown: **${s.body.newbieCooldownHours}h** (new members can't post external links). Hold-for-review: ${s.body.holdNewbieForReview ? "ON" : "OFF"}.`);
+    }
+    const hours = Number(action);
+    if (!Number.isFinite(hours) || hours < 0) {
+      return dest.send("Usage: `!onboard cooldown set <hours>` — e.g. `!onboard cooldown set 24`.");
+    }
+    await api("/api/settings", { newbieCooldownHours: hours });
+    return dest.send(`✅ New-member cooldown set to **${hours}h**. New members posting external links within this window are held for review / removed.`);
+  } catch (err) {
+    return dest.send(`⚠️ Failed: ${err.message}`);
+  }
+}
+
+/** `!allowdomain add|remove|list <domain>` — manage the link allow-list. */
+async function allowDomain(message, cmd, dest) {
+  const parts = cmd.split(/\s+/);
+  const sub = parts[1];
+  const domain = (parts.slice(2).join(" ") || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
+  if (sub === "list" || sub === undefined) {
+    const domains = loadAllowedDomains();
+    if (!domains.length) return dest.send("Allow-list is empty — all external links are blocked.");
+    return dest.send(`✅ Allow-listed domains (${domains.length}):\n${domains.map((d) => `• ${d}`).join("\n")}`);
+  }
+  if (!domain) return dest.send("Usage: `!allowdomain add|remove <domain>` | `!allowdomain list`");
+  if (!/^[a-z0-9.-]+$/.test(domain)) return dest.send(`⚠️ "${domain}" doesn't look like a domain. Use e.g. \`!allowdomain add example.com\`.`);
+
+  const terms = loadAllowedDomains();
+  if (sub === "add") {
+    if (terms.includes(domain)) return dest.send(`⚠️ "${domain}" is already allowed.`);
+    const fs = (await import("node:fs")).default;
+    fs.appendFileSync(config.allowedDomainsPath, `${domain}\n`);
+    return dest.send(`✅ Allow-listed **${domain}** — links to it (and its subdomains) are no longer blocked.`);
+  }
+  if (sub === "remove") {
+    if (!terms.includes(domain)) return dest.send(`⚠️ "${domain}" is not allow-listed.`);
+    const kept = terms.filter((t) => t !== domain);
+    // rebuild the file from a template + kept entries (comments preserved via template)
+    const fs = (await import("node:fs")).default;
+    const header = "# Hearthkeeper allowed domains — 白名單域名\n# (one per line, # comments allowed)\n\n";
+    fs.writeFileSync(config.allowedDomainsPath, header + (kept.map((t) => t).join("\n") || "# (empty)") + "\n");
+    return dest.send(`✅ Removed **${domain}** from the allow-list. Links to it are now blocked.`);
+  }
+  return dest.send("Usage: `!allowdomain add|remove <domain>` | `!allowdomain list`");
+}
+
 /** `!bannedlist` — list blacklisted members. */
 async function bannedList(dest) {
   const banned = loadBannedUsers();
@@ -345,8 +403,7 @@ async function unbanUser(message, dest) {
   return dest.send(`✅ Removed **${target.user.tag}** from the blacklist. Their messages will be reviewed normally again.`);
 }
 
-/** `!whitelist list|add|remove <term>` — manage the whitelist file. */
-async function whitelist(message, cmd, dest) {
+/** `!whitelist list|add|remove <term>` — manage the whitelist file. */async function whitelist(message, cmd, dest) {
   const parts = cmd.split(/\s+/);
   const sub = parts[1];
   const term = parts.slice(2).join(" ").trim();
@@ -542,6 +599,8 @@ client.on(Events.MessageCreate, async (message) => {
       "`!banuser @member` — blacklist a member (messages removed instantly)\n" +
       "`!unbanuser @member` — remove from blacklist\n" +
       "`!bannedlist` — list blacklisted members\n" +
+      "`!onboard cooldown set <hours>` — new-member cooldown (external links)\n" +
+      "`!allowdomain add|remove|list <domain>` — link allow-list\n" +
       "`!stats` — violation stats\n" +
       "`!digest` — today's health report\n" +
       "`!enforce` — apply restrict/ban rulings to Discord (timeout/ban)"
@@ -556,6 +615,8 @@ client.on(Events.MessageCreate, async (message) => {
   if (isCmd(cmd, "banuser")) return banUser(message, dest);
   if (isCmd(cmd, "unbanuser")) return unbanUser(message, dest);
   if (isCmd(cmd, "bannedlist")) return bannedList(dest);
+  if (isCmd(cmd, "onboard")) return onboard(message, cmd, dest);
+  if (isCmd(cmd, "allowdomain")) return allowDomain(message, cmd, dest);
   if (isCmd(cmd, "stats")) return stats(dest);
   if (isCmd(cmd, "digest")) return runDigest(dest);
   if (isCmd(cmd, "enforce")) return enforce(message, cmd, dest);
@@ -599,6 +660,37 @@ client.on(Events.MessageCreate, async (message) => {
       ).catch(() => {});
       log(`[discord] ${message.author.username}: FLOOD auto-remove`);
       await sendViolationNotice(message.author, message.member, { category: flood.category, reason: flood.reason });
+      return;
+    }
+
+    // Discord invite link → removed instantly (no Mind needed).
+    const invites = queued.body.discordInvites ?? [];
+    const inv = invites.find((i) => i.id === postId);
+    if (inv) {
+      await message.delete().catch(() => log(`[discord] could not delete ${message.id}`));
+      await dest.send(`🔴 Removed **${message.author.username}**'s message — **Discord invite link** blocked.\nReason: ${inv.reason}`).catch(() => {});
+      log(`[discord] ${message.author.username}: DISCORD INVITE blocked`);
+      await sendViolationNotice(message.author, message.member, { category: inv.category, reason: inv.reason });
+      return;
+    }
+
+    // External promotional link — held for new members, else removed.
+    const exts = queued.body.externalLinks ?? [];
+    const ext = exts.find((e) => e.id === postId);
+    if (ext) {
+      await message.delete().catch(() => log(`[discord] could not delete ${message.id}`));
+      await dest.send(`🔴 Removed **${message.author.username}**'s message — **external link** not allow-listed.\nReason: ${ext.reason}`).catch(() => {});
+      log(`[discord] ${message.author.username}: EXTERNAL LINK blocked`);
+      await sendViolationNotice(message.author, message.member, { category: ext.category, reason: ext.reason });
+      return;
+    }
+
+    // New-member content held for review (not deleted).
+    const held = queued.body.newbieHeld ?? [];
+    const h = held.find((n) => n.id === postId);
+    if (h) {
+      await dest.send(`🟡 **${message.author.username}** is a new member — their message with an external link is **held for human review**.\nReason: ${h.reason}`).catch(() => {});
+      log(`[discord] ${message.author.username}: newbie external link HOLD`);
       return;
     }
 

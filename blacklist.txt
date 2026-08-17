@@ -13,40 +13,5 @@
 #
 # When a message hits a term here it is deleted instantly with
 # reason: "Blacklisted term: …" — no Mind call, no waiting.
-
-# ── abuse / harassment (EN) ─────────────────────────────────────────
-fuck you
-fuck yo
-fuck off
-wcnm
-sb
-stupid ass
-kill yourself
-fuck
-fku
-cnm
-cnmb
-nmsl
-
-# ── abuse / harassment (中文, 用 Discord 的 !blacklist add 添加) ────
-傻逼
-垃圾
-去死
-脑残
-白痴
-
-# ── spam (learned from real rulings) ────────────────────────────────
-NFT
-dm me
-trash
-uninstall
-FREE CRYPTO AIRDROP
-scam link
-free coins
-BUY NOW
-100x
-free crypto
-first 10 dms
-mods are stupid
-onlyfans
-exclusive art
+#
+# (词库已清空 — dictionary is empty)

@@ -1,0 +1,44 @@
+Hearthkeeper - 组员快速开始（5 分钟）
+============================================
+
+一、安装环境（只需一次）
+  1. 安装 Node.js 22 或更高版本：https://nodejs.org
+     装完在终端运行 node --version 确认版本 >= 22
+
+二、首次运行
+  1. 解压本 zip 到任意位置
+  2. 进入 hearthkeeper 文件夹
+  3. 把 .env.team 改名为 .env
+     （Windows 资源管理器里：右键 .env.team -> 重命名 -> 输入 .env 回车）
+     （如果系统提示"输入文件名"弹窗，把 .env.team 改成 .env 即可）
+  4. 打开 PowerShell（在文件夹地址栏输入 powershell 回车）
+  5. 依次执行：
+     npm install
+     npm test          # 应显示 36 个用例全部通过
+     npm run reset     # 清空数据，从零开始
+     npm start         # 启动引擎（这个窗口保持开着）
+  6. 另开一个 PowerShell，同样进入文件夹，执行：
+     npm run discord   # 启动 Discord bot
+
+三、验证
+  - 终端显示 "Discord bot online as Hearthkeeper#xxxx" 即成功
+  - Discord 频道里发送 !help 查看全部命令
+  - 测试清单见 docs\TEST_CHECKLIST.txt（24 项，逐项打勾）
+
+四、重要限制（务必阅读）
+  1. 同一时间只能有一个人运行 npm run discord（大家共用同一个
+     Discord bot token，同时运行会互相踢下线）。拍视频时协调好。
+  2. 本配置使用独立会话 hearthkeeper-team-demo，与主演示
+     （hearthkeeper-main-2）互不干扰，Mind 记忆各自独立。
+  3. .env 和 .env.team 里有 API key 和 bot token，属于敏感信息：
+     - 不要发给项目组以外的人
+     - 不要上传到任何网盘公开链接 / GitHub / 群文件
+     - 如果泄露，请通知管理员重置 key
+  4. 拍完视频或测试完，建议运行 npm run reset 清空数据再交接。
+
+五、常见问题
+  - 引擎和 bot 都要跑，缺一个都不行（bot 依赖引擎）
+  - 判决需要 30-90 秒，是 Mind 在思考，不是卡住
+  - 收不到 bot 消息：确认邀请过 bot 到你的 Discord 服务器
+    （邀请方法见 docs\DISCORD.md）
+  - 功能说明：docs\TEAM_GUIDE_ZH.md（14 个功能逐一讲解）

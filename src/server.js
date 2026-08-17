@@ -24,6 +24,7 @@ import {
   loadBlacklist, loadWhitelist, matchBlacklist, matchWhitelist,
   addBlacklistTerm, addWhitelistTerm, loadBannedUsers, isUserBanned,
 } from "./blacklist.js";
+import { loadAllowedDomains, hasDiscordInvite, findExternalLink } from "./linkguard.js";
 
 // ── Bootstrap ───────────────────────────────────────────────────────
 
@@ -100,6 +101,14 @@ async function ensureOnboarded({ force = false } = {}) {
 function friendlyError(err) {
   if (err instanceof MindError) return { message: err.message, code: err.code };
   return { message: err?.message ?? String(err) };
+}
+
+/** Is this member a "newbie" (joined less than cooldownHours ago)? */
+function isNewMember(userId, cooldownHours) {
+  const user = db.prepare("SELECT first_seen FROM users WHERE id = ?").get(userId);
+  if (!user) return true; // unknown member → treat as new
+  const ageMs = Date.now() - new Date(user.first_seen).getTime();
+  return ageMs < cooldownHours * 3600 * 1000;
 }
 
 async function refreshMindInfo() {
@@ -383,11 +392,17 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
   const blackTerms = loadBlacklist();
   const whiteTerms = loadWhitelist();
   const banned = loadBannedUsers();
+  const allowedDomains = loadAllowedDomains();
+  const newbieCooldownHours = Number(getMeta(db, "newbie_cooldown_hours", config.newbieCooldownHours));
+  const holdNewbie = config.holdNewbieForReview;
   const created = [];
   const blacklisted = [];
   const whitelisted = [];
   const flooded = [];
   const memberBanned = [];
+  const externalLinks = [];
+  const discordInvites = [];
+  const newbieHeld = [];
   const floodSince = new Date(Date.now() - config.floodWindowMs).toISOString();
   for (const p of posts) {
     if (isUserBanned(p.userId, banned)) {
@@ -400,6 +415,44 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
       log(`[ingest] ${p.id} auto-removed (member blacklisted: ${p.userId})`);
       continue;
     }
+
+    // Link guard — Discord invites are always a violation.
+    if (hasDiscordInvite(p.text)) {
+      addPost(db, p);
+      const post = applyDecision(db, {
+        postId: p.id, action: "remove", severity: "high", category: "off-topic",
+        reason: "Discord invite link posted (邀請鏈接攔截)", source: "system",
+      });
+      discordInvites.push({ ...post, matchedTerm: "discord-invite" });
+      log(`[ingest] ${p.id} auto-removed (discord invite)`);
+      continue;
+    }
+
+    // External promotional link — allowed only if host is allow-listed.
+    const extHost = findExternalLink(p.text, allowedDomains);
+    if (extHost) {
+      const isNewbie = isNewMember(p.userId, newbieCooldownHours);
+      addPost(db, p);
+      if (isNewbie && holdNewbie) {
+        // New member: don't auto-delete their whole account; hold the
+        // message for human review.
+        const post = applyDecision(db, {
+          postId: p.id, action: "flag", severity: "medium", category: "spam",
+          reason: `New member posted external link (${extHost}) within ${newbieCooldownHours}h cooldown — held for review`, source: "system",
+        });
+        newbieHeld.push({ ...post, matchedTerm: extHost });
+        log(`[ingest] ${p.id} newbie external link held: ${extHost}`);
+      } else {
+        const post = applyDecision(db, {
+          postId: p.id, action: "remove", severity: "high", category: "spam",
+          reason: `External promotional link blocked (${extHost}) — not allow-listed / newbie cooldown`, source: "system",
+        });
+        externalLinks.push({ ...post, matchedTerm: extHost });
+        log(`[ingest] ${p.id} external link removed: ${extHost}`);
+      }
+      continue;
+    }
+
     const bad = matchBlacklist(p.text, blackTerms);
     if (bad) {
       addPost(db, p);
@@ -438,8 +491,8 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
     }
     created.push(addPost(db, p));
   }
-  log(`[ingest] ${created.length} queued, ${blacklisted.length} blacklisted, ${whitelisted.length} whitelisted, ${flooded.length} flooded, ${memberBanned.length} member-banned`);
-  res.status(201).json({ created: created.length, posts: created, blacklisted, whitelisted, flooded, memberBanned });
+  log(`[ingest] ${created.length} queued, ${blacklisted.length} blacklisted, ${whitelisted.length} whitelisted, ${flooded.length} flooded, ${memberBanned.length} member-banned, ${externalLinks.length} ext-links, ${discordInvites.length} invites, ${newbieHeld.length} newbie-held`);
+  res.status(201).json({ created: created.length, posts: created, blacklisted, whitelisted, flooded, memberBanned, externalLinks, discordInvites, newbieHeld });
 });
 
 // Review the queue with the Mind (also called by the scheduler).
@@ -501,6 +554,28 @@ app.post("/api/onboard", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: friendlyError(err) });
   }
+});
+
+// Read/update dynamic settings (used by Discord !onboard cooldown).
+app.get("/api/settings", (_req, res) => {
+  res.json({
+    newbieCooldownHours: Number(getMeta(db, "newbie_cooldown_hours", config.newbieCooldownHours)),
+    holdNewbieForReview: config.holdNewbieForReview,
+    allowedDomains: loadAllowedDomains(),
+  });
+});
+
+app.post("/api/settings", (req, res) => {
+  const { newbieCooldownHours, holdNewbieForReview } = req.body ?? {};
+  if (newbieCooldownHours !== undefined) {
+    const v = Number(newbieCooldownHours);
+    if (!Number.isFinite(v) || v < 0) return res.status(400).json({ error: "newbieCooldownHours must be a non-negative number" });
+    setMeta(db, "newbie_cooldown_hours", String(v));
+  }
+  if (holdNewbieForReview !== undefined) {
+    config.holdNewbieForReview = !!holdNewbieForReview;
+  }
+  res.json({ ok: true });
 });
 
 app.post("/api/chat", async (req, res) => {

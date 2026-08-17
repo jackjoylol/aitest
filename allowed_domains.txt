@@ -1,0 +1,12 @@
+# Hearthkeeper allowed domains — 白名單域名
+#
+# One domain per line, `#` starts a comment. Matching is
+# case-insensitive and covers subdomains too:
+#   example.com  → allows  example.com  AND  cdn.example.com
+#
+# Links whose host is NOT on this list are treated as external
+# promotional links and removed (or held for review for new members).
+#
+# Manage from Discord with `!allowdomain add|remove|list`.
+#
+# (empty — no external domains are allowed until you add them)
