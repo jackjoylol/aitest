@@ -308,21 +308,25 @@ async function blacklist(message, cmd, dest) {
 async function onboard(message, cmd, dest) {
   const parts = cmd.split(/\s+/);
   const sub = parts[1]; // "cooldown"
-  const action = parts[2]; // "set" | "show" | a number
+  const action = parts[2]; // "set" | "show"
   if (sub !== "cooldown") {
-    return dest.send("Usage: `!onboard cooldown set <hours>` | `!onboard cooldown show`");
+    return dest.send("Usage: `!onboard cooldown set <minutes>` | `!onboard cooldown show`");
   }
   try {
-    if (typeof action === "string" && action === "show") {
+    if (action === "show") {
       const s = await api("/api/settings");
-      return dest.send(`🛡️ New-member cooldown: **${s.body.newbieCooldownHours}h** (new members can't post external links). Hold-for-review: ${s.body.holdNewbieForReview ? "ON" : "OFF"}.`);
+      return dest.send(`🛡️ New-member cooldown: **${s.body.newbieCooldownMinutes}m** (new members can't post external links). Hold-for-review: ${s.body.holdNewbieForReview ? "ON" : "OFF"}.`);
     }
-    const hours = Number(action);
-    if (!Number.isFinite(hours) || hours < 0) {
-      return dest.send("Usage: `!onboard cooldown set <hours>` — e.g. `!onboard cooldown set 24`.");
+    if (action !== "set") {
+      return dest.send("Usage: `!onboard cooldown set <minutes>` — e.g. `!onboard cooldown set 60` (1 hour).");
     }
-    await api("/api/settings", { newbieCooldownHours: hours });
-    return dest.send(`✅ New-member cooldown set to **${hours}h**. New members posting external links within this window are held for review / removed.`);
+    const minutes = Number(parts[3]);
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      return dest.send("Usage: `!onboard cooldown set <minutes>` — e.g. `!onboard cooldown set 60` (1 hour).");
+    }
+    await api("/api/settings", { newbieCooldownMinutes: minutes });
+    const h = Number.isInteger(minutes / 60) && minutes >= 60 ? ` (${minutes / 60}h)` : "";
+    return dest.send(`✅ New-member cooldown set to **${minutes}m${h}**. New members posting external links within this window are held for review / removed.`);
   } catch (err) {
     return dest.send(`⚠️ Failed: ${err.message}`);
   }

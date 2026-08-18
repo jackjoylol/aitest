@@ -103,12 +103,12 @@ function friendlyError(err) {
   return { message: err?.message ?? String(err) };
 }
 
-/** Is this member a "newbie" (joined less than cooldownHours ago)? */
-function isNewMember(userId, cooldownHours) {
+/** Is this member a "newbie" (joined less than cooldownMinutes ago)? */
+function isNewMember(userId, cooldownMinutes) {
   const user = db.prepare("SELECT first_seen FROM users WHERE id = ?").get(userId);
   if (!user) return true; // unknown member → treat as new
   const ageMs = Date.now() - new Date(user.first_seen).getTime();
-  return ageMs < cooldownHours * 3600 * 1000;
+  return ageMs < cooldownMinutes * 60 * 1000;
 }
 
 async function refreshMindInfo() {
@@ -400,7 +400,7 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
   const whiteTerms = loadWhitelist();
   const banned = loadBannedUsers();
   const allowedDomains = loadAllowedDomains();
-  const newbieCooldownHours = Number(getMeta(db, "newbie_cooldown_hours", config.newbieCooldownHours));
+  const newbieCooldownMinutes = Number(getMeta(db, "newbie_cooldown_minutes", config.newbieCooldownMinutes));
   const holdNewbie = config.holdNewbieForReview;
   const created = [];
   const blacklisted = [];
@@ -438,14 +438,14 @@ app.post(["/api/posts", "/api/webhook"], (req, res) => {
     // External promotional link — allowed only if host is allow-listed.
     const extHost = findExternalLink(p.text, allowedDomains);
     if (extHost) {
-      const isNewbie = isNewMember(p.userId, newbieCooldownHours);
+      const isNewbie = isNewMember(p.userId, newbieCooldownMinutes);
       addPost(db, p);
       if (isNewbie && holdNewbie) {
         // New member: don't auto-delete their whole account; hold the
         // message for human review.
         const post = applyDecision(db, {
           postId: p.id, action: "flag", severity: "medium", category: "spam",
-          reason: `New member posted external link (${extHost}) within ${newbieCooldownHours}h cooldown — held for review`, source: "system",
+          reason: `New member posted external link (${extHost}) within ${newbieCooldownMinutes}m cooldown — held for review`, source: "system",
         });
         newbieHeld.push({ ...post, matchedTerm: extHost });
         log(`[ingest] ${p.id} newbie external link held: ${extHost}`);
@@ -566,18 +566,18 @@ app.post("/api/onboard", async (req, res) => {
 // Read/update dynamic settings (used by Discord !onboard cooldown).
 app.get("/api/settings", (_req, res) => {
   res.json({
-    newbieCooldownHours: Number(getMeta(db, "newbie_cooldown_hours", config.newbieCooldownHours)),
+    newbieCooldownMinutes: Number(getMeta(db, "newbie_cooldown_minutes", config.newbieCooldownMinutes)),
     holdNewbieForReview: config.holdNewbieForReview,
     allowedDomains: loadAllowedDomains(),
   });
 });
 
 app.post("/api/settings", (req, res) => {
-  const { newbieCooldownHours, holdNewbieForReview } = req.body ?? {};
-  if (newbieCooldownHours !== undefined) {
-    const v = Number(newbieCooldownHours);
-    if (!Number.isFinite(v) || v < 0) return res.status(400).json({ error: "newbieCooldownHours must be a non-negative number" });
-    setMeta(db, "newbie_cooldown_hours", String(v));
+  const { newbieCooldownMinutes, holdNewbieForReview } = req.body ?? {};
+  if (newbieCooldownMinutes !== undefined) {
+    const v = Number(newbieCooldownMinutes);
+    if (!Number.isFinite(v) || v < 0) return res.status(400).json({ error: "newbieCooldownMinutes must be a non-negative number" });
+    setMeta(db, "newbie_cooldown_minutes", String(v));
   }
   if (holdNewbieForReview !== undefined) {
     config.holdNewbieForReview = !!holdNewbieForReview;
