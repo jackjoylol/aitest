@@ -708,12 +708,14 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    // New-member content held for review (not deleted).
+    // New-member content held for review — delete the message too, but
+    // tell the member it was intercepted and can be reviewed.
     const held = queued.body.newbieHeld ?? [];
     const h = held.find((n) => n.id === postId);
     if (h) {
-      await dest.send(`🟡 **${message.author.username}** is a new member — their message with an external link is **held for human review**.\nReason: ${h.reason}`).catch(() => {});
-      log(`[discord] ${message.author.username}: newbie external link HOLD`);
+      await message.delete().catch(() => log(`[discord] could not delete ${message.id}`));
+      await dest.send(`🟡 **${message.author.username}** is a new member — their message with an external link was **intercepted and removed** (held for human review).\nReason: ${h.reason}`).catch(() => {});
+      log(`[discord] ${message.author.username}: newbie external link REMOVED+held`);
       return;
     }
 

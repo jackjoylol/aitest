@@ -98,9 +98,9 @@
 - 白名单为空时 = 所有外部链接都拦（推荐，默认全拦再逐步放开）。
 
 ### 17. 新号冷卻（newbie cooldown）
-- **是什么**：进群 < 24 小时（可调）的新号，发外部链接 → **不秒删**，而是**持有转人工复核**（flag）——避免误伤刚来的正常用户，同时挡住机器人轰炸/广告小号。
-- **怎么演示**：新号发外链 → bot 提示"new member... held for review"，`!flagged` 能查到待人工复核。
-- 命令：`!onboard cooldown set <小时>` / `!onboard cooldown show`。
+- **是什么**：进群 < 冷却时长（默认 24h，单位**分钟**可调）的新号，发外部链接 → **消息被删除**（不再留在聊天里）+ **转人工复核**（flag），`!flagged` 可查到——既挡住机器人轰炸/广告小号，又保留记录供人工评估。
+- **怎么演示**：新号发外链 → bot 删消息 + 提示"intercepted and removed (held for human review)"，`!flagged` 能查到待人工复核。
+- 命令（分钟单位）：`!onboard cooldown set <分钟>` 例如 `set 60`（1 小时）、`set 1`（1 分钟，测试方便）；`!onboard cooldown show` 查看。
 
 ### 18. 新成员欢迎（Mind says hello）
 - **是什么**：新成员加入服务器时，**Mind 写个性化欢迎语**（含用户名）发到欢迎频道（30–90 秒生成）。Mind 挂了自动用模板兜底。
