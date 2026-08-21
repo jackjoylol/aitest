@@ -107,6 +107,21 @@
 - **怎么演示**：邀请一个小号进服务器 → 欢迎频道出现带名字的欢迎语。
 - ⚠️ 需先在 Discord Developer Portal 开启 **SERVER MEMBERS INTENT** 并重新邀请 bot；配置 `DISCORD_WELCOME_CHANNEL_ID`（不填用系统频道）。每条欢迎耗 1 次 cognition。
 
+### 19. 自动表情反应（emoji reactions）
+- **是什么**：每条被审核/拦截的消息，bot 自动给原消息加反应，一眼看出处理结果。
+- **规则**：判决 `allow`=🟢 / `flag`=🟡 / `remove`=🔴；黑名单秒删=🚫；刷屏=🚫；Discord邀请/外部链接=🔗；新号外链持有=🛡️。
+- **怎么演示**：发一条违规则消息 → 被删的同时原消息上已有对应 emoji。
+
+### 20. 置顶 & 撤回（!pin / !recall）
+- **`!pin <postId>`**：置顶某条已判决消息（需 bot 有 Manage Messages 权限）。postId 用 `!flagged` 或判决回贴里查。
+- **`!recall <postId|msgId>`**：撤回并删除原消息（物理删 Discord 消息 + 审计库标记 recalled）。也支持对消息点右键 → 引用后直接 `!recall`。
+- **怎么演示**：`!pin discord_xxx` 置顶；`!recall discord_xxx` 删除原消息并标记。
+
+### 21. 已读标记（!read）
+- **是什么**：人工复核后可标记某帖"已读"（seen=1），`!flagged`/判决记录里能看到处理进度，避免重复处理。
+- **命令**：`!read <postId>` 标记已读。
+- **怎么演示**：处理完 `!flagged` 里的帖子 → 逐个 `!read` 标记，状态更新。
+
 ## 三、Discord 命令速查
 
 | 命令 | 作用 |
@@ -125,6 +140,9 @@
 | `!bannedlist` | 列出已拉黑用户 |
 | `!onboard cooldown set\|show <小时>` | 新号冷却时长设置/查看 |
 | `!allowdomain add\|remove\|list <域名>` | 管理链接白名单域名 |
+| `!pin <postId>` | 置顶消息 |
+| `!recall <postId\|msgId>` | 撤回并删除原消息 + 标记 |
+| `!read <postId>` | 标记已读 |
 | `!help` | 命令列表 |
 
 **自动行为（无需命令）**：黑名单秒删、白名单秒放行、私信警告阶梯、刷屏防护、Discord邀请拦截、外部链接拦截、新号冷却持有转人工、新成员欢迎、每日自动日报。

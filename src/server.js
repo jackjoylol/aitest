@@ -15,7 +15,7 @@ import config, { ROOT } from "./config.js";
 import {
   openDb, addPost, getPost, pendingPosts,
   applyDecision, listDecisions, decisionsInWindow, listUsers, setUserStatus,
-  addReport, listReports, getMeta, setMeta, counts,
+  addReport, listReports, getMeta, setMeta, counts, markRead, markRecalled,
 } from "./db.js";
 import { getMinds, resolveMind, MindError } from "./minds.js";
 import * as mod from "./moderation.js";
@@ -513,8 +513,7 @@ app.post("/api/review", async (_req, res) => {
 });
 
 // Creator overrides a verdict → audit + correction loop to the Mind.
-app.post("/api/decisions/:postId/override", async (req, res) => {
-  const { postId } = req.params;
+app.post("/api/decisions/:postId/override", async (req, res) => {  const { postId } = req.params;
   const to = String(req.body?.to ?? "");
   const note = String(req.body?.note ?? "").slice(0, 500);
   if (!mod.ACTIONS.includes(to)) return res.status(400).json({ error: `"to" must be one of ${mod.ACTIONS.join(", ")}` });
@@ -536,6 +535,28 @@ app.post("/api/decisions/:postId/override", async (req, res) => {
     .catch((err) => log(`[override] correction failed: ${err.message}`));
 
   res.json({ post: getPost(db, postId) });
+});
+
+// Mark a post as "read" by a moderator (已讀).
+app.post("/api/decisions/:postId/read", (req, res) => {
+  const { postId } = req.params;
+  const post = getPost(db, postId);
+  if (!post) return res.status(404).json({ error: "Post not found" });
+  const updated = markRead(db, postId);
+  log(`[read] ${postId} marked read`);
+  res.json({ post: updated });
+});
+
+// Mark a post as "recalled" — the message was deleted (撤回).
+// This is the record-keeping endpoint; the bot actually deletes the
+// original Discord message when the moderator runs !recall.
+app.post("/api/decisions/:postId/recall", (req, res) => {
+  const { postId } = req.params;
+  const post = getPost(db, postId);
+  if (!post) return res.status(404).json({ error: "Post not found" });
+  const updated = markRecalled(db, postId);
+  log(`[recall] ${postId} marked recalled`);
+  res.json({ post: updated });
 });
 
 app.post("/api/escalate", async (_req, res) => {

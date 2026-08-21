@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS posts (
   category    TEXT,                            -- spam | harassment | hate | nsfw | off-topic | misinfo | self-promo | other | none
   reason      TEXT,
   reviewed_by TEXT,                            -- mind | creator | system
-  decided_at  TEXT
+  decided_at  TEXT,
+  seen        INTEGER NOT NULL DEFAULT 0,      -- 已读标记: 0 未读 | 1 已读
+  recalled    INTEGER NOT NULL DEFAULT 0       -- 撤回: 1 已撤回(原消息已删)
 );
 CREATE TABLE IF NOT EXISTS decisions (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +71,15 @@ export function openDb(dbPath) {
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Add newly-introduced columns to an existing database. */
+function migrate(db) {
+  const cols = db.prepare("PRAGMA table_info(posts)").all().map((r) => r.name);
+  if (!cols.includes("seen")) db.exec("ALTER TABLE posts ADD COLUMN seen INTEGER NOT NULL DEFAULT 0");
+  if (!cols.includes("recalled")) db.exec("ALTER TABLE posts ADD COLUMN recalled INTEGER NOT NULL DEFAULT 0");
 }
 
 // ── users ───────────────────────────────────────────────────────────
@@ -162,10 +172,22 @@ export function applyDecision(db, { postId, action, severity, category, reason, 
 
 export function listDecisions(db, limit = 100) {
   return db.prepare(`
-    SELECT d.*, p.user_name, p.user_id, p.text FROM decisions d
+    SELECT d.*, p.user_name, p.user_id, p.text, p.seen, p.recalled FROM decisions d
     JOIN posts p ON p.id = d.post_id
     ORDER BY d.created_at DESC LIMIT ?
   `).all(limit);
+}
+
+/** Mark a post as "read" (seen by a moderator). Returns the post. */
+export function markRead(db, postId) {
+  db.prepare("UPDATE posts SET seen = 1 WHERE id = ?").run(postId);
+  return getPost(db, postId);
+}
+
+/** Mark a post as "recalled" (原消息已删). Returns the post. */
+export function markRecalled(db, postId) {
+  db.prepare("UPDATE posts SET recalled = 1, status = 'removed' WHERE id = ?").run(postId);
+  return getPost(db, postId);
 }
 
 export function decisionsInWindow(db, { sinceIso }) {

@@ -130,6 +130,9 @@ async function ensureReviewLoop(channel, dest) {
           await sendViolationNotice(msg.author, msg.member, { category: v.category, reason: v.reason });
         }
         log(`[loop] ${msg.author.username}: ${v.action}/${v.category} (${msgId})`);
+        // Auto-react on the reviewed message.
+        const react = { allow: "🟢", flag: "🟡", remove: "🔴" }[v.action];
+        if (react) msg.react(react).catch(() => log(`[loop] react failed on ${msgId}`));
       }
       if (verdicts.length < 8) break; // batch smaller than max = queue likely drained
     }
@@ -363,6 +366,79 @@ async function allowDomain(message, cmd, dest) {
     return dest.send(`✅ Removed **${domain}** from the allow-list. Links to it are now blocked.`);
   }
   return dest.send("Usage: `!allowdomain add|remove <domain>` | `!allowdomain list`");
+}
+
+/** Resolve a discord_<msgId> post id back to the target message context. */
+function resolveMsgFromPostId(message, postId) {
+  if (!postId) return null;
+  if (postId.startsWith("discord_")) return postId.slice("discord_".length);
+  return postId; // fallback: treat as a raw Discord message id
+}
+
+/**
+ * `!pin <postId|msgId|@message-link>` — pin a reviewed message.
+ * Needs "Manage Messages" on the bot.
+ */
+async function pinMessage(message, cmd, dest) {
+  const parts = cmd.split(/\s+/);
+  const arg = parts[1];
+  if (!arg) return dest.send("Usage: `!pin <postId>` — e.g. `!pin discord_1234567890`, or reply to a message.");
+  const msgId = resolveMsgFromPostId(message, arg) ?? message.reference?.messageId;
+  try {
+    const target = await message.channel.messages.fetch(msgId);
+    await target.pin();
+    log(`[pin] pinned ${msgId}`);
+    return dest.send(`📌 Pinned message \`${msgId}\`.`);
+  } catch (err) {
+    log(`[pin] failed ${msgId}: ${err.message}`);
+    return dest.send(`⚠️ Pin failed — need *Manage Messages* permission. ${err.message}`);
+  }
+}
+
+/**
+ * `!recall <postId|msgId>` — recall (delete) the original message and
+ * mark the post as recalled in the audit log.
+ */
+async function recallMessage(message, cmd, dest) {
+  const parts = cmd.split(/\s+/);
+  const arg = parts[1];
+  const maybeMsgId = resolveMsgFromPostId(message, arg) ?? message.reference?.messageId;
+  if (!maybeMsgId) return dest.send("Usage: `!recall <postId|msgId>` — or reply to the message you want to recall.");
+  let deleted = false;
+  try {
+    const target = await message.channel.messages.fetch(maybeMsgId);
+    await target.delete();
+    deleted = true;
+  } catch (err) {
+    log(`[recall] delete failed ${maybeMsgId}: ${err.message} (may already be gone or missing Manage Messages)`);
+  }
+  // Record it even if the physical delete failed (post is gone anyway).
+  const postId = arg && arg.startsWith("discord_") ? arg : `discord_${maybeMsgId}`;
+  try {
+    const r = await api(`/api/decisions/${encodeURIComponent(postId)}/recall`, {});
+    if (!r.body.post) {
+      // post not found — just report the delete result.
+      return dest.send(deleted ? `✅ Recalled message \`${maybeMsgId}\`. (未在审计库找到记录)` : `⚠️ 无法删除 \`${maybeMsgId}\`：${/* not present */""}可能缺 Manage Messages 权限`);
+    }
+  } catch (err) {
+    log(`[recall] API failed ${postId}: ${err.message}`);
+  }
+  return dest.send(deleted ? `✅ Recalled & deleted message \`${maybeMsgId}\`.` : `⚠️ 未能删除原消息 \`${maybeMsgId}\`（可能缺权限或已被删），但已标记撤回。`);
+}
+
+/** `!read <postId>` — mark a post as seen by a moderator (已讀). */
+async function readMessage(message, cmd, dest) {
+  const parts = cmd.split(/\s+/);
+  const arg = parts[1];
+  if (!arg) return dest.send("Usage: `!read <postId>` — e.g. `!read discord_1234567890`. Find ids with `!flagged`.");
+  const postId = arg.startsWith("discord_") || arg.startsWith("post_") ? arg : `discord_${arg}`;
+  try {
+    const r = await api(`/api/decisions/${encodeURIComponent(postId)}/read`, {});
+    if (!r.body.post) return dest.send(`⚠️ Post \`${postId}\` not found.`);
+    return dest.send(`✅ Marked \`${postId}\` as read.`);
+  } catch (err) {
+    return dest.send(`⚠️ Mark read failed: ${err.message}`);
+  }
 }
 
 /** `!bannedlist` — list blacklisted members. */
@@ -624,6 +700,9 @@ client.on(Events.MessageCreate, async (message) => {
       "`!bannedlist` — list blacklisted members\n" +
       "`!onboard cooldown set <hours>` — new-member cooldown (external links)\n" +
       "`!allowdomain add|remove|list <domain>` — link allow-list\n" +
+      "`!pin <postId>` — pin a reviewed message\n" +
+      "`!recall <postId|msgId>` — recall (delete) a message + mark\n" +
+      "`!read <postId>` — mark a post as read\n" +
       "`!stats` — violation stats\n" +
       "`!digest` — today's health report\n" +
       "`!enforce` — apply restrict/ban rulings to Discord (timeout/ban)"
@@ -640,6 +719,9 @@ client.on(Events.MessageCreate, async (message) => {
   if (isCmd(cmd, "bannedlist")) return bannedList(dest);
   if (isCmd(cmd, "onboard")) return onboard(message, cmd, dest);
   if (isCmd(cmd, "allowdomain")) return allowDomain(message, cmd, dest);
+  if (isCmd(cmd, "pin")) return pinMessage(message, cmd, dest);
+  if (isCmd(cmd, "recall")) return recallMessage(message, cmd, dest);
+  if (isCmd(cmd, "read")) return readMessage(message, cmd, dest);
   if (isCmd(cmd, "stats")) return stats(dest);
   if (isCmd(cmd, "digest")) return runDigest(dest);
   if (isCmd(cmd, "enforce")) return enforce(message, cmd, dest);
@@ -667,6 +749,7 @@ client.on(Events.MessageCreate, async (message) => {
       await dest.send(
         `🔴 Removed **${message.author.username}**'s message — **blacklisted term** (${hit.category}).\nReason: ${hit.reason}`
       ).catch(() => {});
+      message.react("🚫").catch(() => {});
       log(`[discord] ${message.author.username}: BLACKLIST auto-remove (${hit.matchedTerm})`);
       // Private warning ladder (1st → reminder, 2nd → 10-min mute, 3rd → ban warning)
       await sendViolationNotice(message.author, message.member, { category: hit.category, reason: hit.reason });
@@ -681,6 +764,7 @@ client.on(Events.MessageCreate, async (message) => {
       await dest.send(
         `🔴 Removed **${message.author.username}**'s message — **message flood**.\nReason: ${flood.reason}`
       ).catch(() => {});
+      message.react("🚫").catch(() => {});
       log(`[discord] ${message.author.username}: FLOOD auto-remove`);
       await sendViolationNotice(message.author, message.member, { category: flood.category, reason: flood.reason });
       return;
@@ -692,6 +776,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (inv) {
       await message.delete().catch(() => log(`[discord] could not delete ${message.id}`));
       await dest.send(`🔴 Removed **${message.author.username}**'s message — **Discord invite link** blocked.\nReason: ${inv.reason}`).catch(() => {});
+      message.react("🔗").catch(() => {});
       log(`[discord] ${message.author.username}: DISCORD INVITE blocked`);
       await sendViolationNotice(message.author, message.member, { category: inv.category, reason: inv.reason });
       return;
@@ -703,6 +788,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (ext) {
       await message.delete().catch(() => log(`[discord] could not delete ${message.id}`));
       await dest.send(`🔴 Removed **${message.author.username}**'s message — **external link** not allow-listed.\nReason: ${ext.reason}`).catch(() => {});
+      message.react("🔗").catch(() => {});
       log(`[discord] ${message.author.username}: EXTERNAL LINK blocked`);
       await sendViolationNotice(message.author, message.member, { category: ext.category, reason: ext.reason });
       return;
@@ -715,6 +801,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (h) {
       await message.delete().catch(() => log(`[discord] could not delete ${message.id}`));
       await dest.send(`🟡 **${message.author.username}** is a new member — their message with an external link was **intercepted and removed** (held for human review).\nReason: ${h.reason}`).catch(() => {});
+      message.react("🛡️").catch(() => {});
       log(`[discord] ${message.author.username}: newbie external link REMOVED+held`);
       return;
     }
